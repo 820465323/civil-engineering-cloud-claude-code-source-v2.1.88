@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Search 工具：从关键词到 LLM 结果的端到端流程</title>
+  <style>
+    /* ─── 全局重置与基础排版 ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #f4f6fb;
+    }
+
+    /* ─── 页面顶部横幅 ─── */
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+      color: #e0e0e0;
+      padding: 2.5rem 2rem 2rem;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 1.8rem;
+      letter-spacing: .05em;
+      color: #e2b96f;
+      margin-bottom: .5rem;
+    }
+    header p { font-size: .9rem; color: #a8b2c8; }
+    header code { background: rgba(255,255,255,.1); border-radius: 4px; padding: 1px 6px; font-size: .82rem; }
+
+    /* ─── 导航锚点 ─── */
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      justify-content: center;
+      padding: .8rem 1rem;
+      background: #16213e;
+    }
+    nav a {
+      color: #7ec8e3;
+      text-decoration: none;
+      font-size: .85rem;
+      padding: .25rem .8rem;
+      border: 1px solid #7ec8e3;
+      border-radius: 14px;
+      transition: background .2s;
+    }
+    nav a:hover { background: #7ec8e3; color: #16213e; }
+
+    /* ─── 内容区容器 ─── */
+    main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+
+    /* ─── 章节卡片 ─── */
+    section {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      padding: 1.8rem 2rem;
+      margin-bottom: 2rem;
+    }
+    section h2 {
+      font-size: 1.2rem;
+      color: #0f3460;
+      border-left: 4px solid #e2b96f;
+      padding-left: .75rem;
+      margin-bottom: 1.2rem;
+    }
+    section h3 { font-size: 1rem; color: #16213e; margin: 1rem 0 .5rem; }
+
+    /* ─── 终端风格代码块 ─── */
+    .terminal {
+      background: #0d1117;
+      color: #c9d1d9;
+      border-radius: 8px;
+      padding: 1.2rem 1.5rem;
+      font-family: "SF Mono", "Fira Code", Consolas, monospace;
+      font-size: .82rem;
+      line-height: 1.85;
+      overflow-x: auto;
+    }
+    .terminal .step-num  { color: #79c0ff; font-weight: bold; }
+    .terminal .step-name { color: #ffa657; }
+    .terminal .code-ref  { color: #7ee787; font-style: italic; font-size: .78rem; }
+    .terminal .comment   { color: #8b949e; }
+    .terminal .highlight { color: #f0883e; font-weight: bold; }
+    .terminal .arrow     { color: #e2b96f; }
+
+    /* ─── 有序 / 无序列表 ─── */
+    ol, ul { padding-left: 1.4rem; }
+    li { margin: .35rem 0; }
+    li code, p code {
+      background: #eef1f8;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: .85em;
+      font-family: "SF Mono", Consolas, monospace;
+      color: #c0392b;
+    }
+
+    /* ─── 表格 ─── */
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { border: 1px solid #dee2f0; padding: .6rem .85rem; }
+    th { background: #0f3460; color: #e2b96f; text-align: left; }
+    tr:nth-child(even) { background: #f7f8fc; }
+
+    /* ─── 警告 / 提示框 ─── */
+    .callout {
+      border-left: 4px solid;
+      padding: .75rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: .75rem 0;
+      font-size: .9rem;
+    }
+    .callout.info    { border-color: #3498db; background: #ebf5fb; }
+    .callout.warn    { border-color: #e67e22; background: #fef9f0; }
+    .callout.danger  { border-color: #e74c3c; background: #fdf0ef; }
+    .callout.success { border-color: #27ae60; background: #eafaf1; }
+    .callout strong  { display: block; margin-bottom: .25rem; }
+
+    /* ─── SVG 容器 ─── */
+    .svg-wrap {
+      overflow-x: auto;
+      padding: .5rem 0;
+    }
+    svg { display: block; margin: 0 auto; }
+
+    /* ─── 后处理步骤卡片 ─── */
+    .post-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .post-card {
+      border: 1px solid #dee2f0;
+      border-radius: 10px;
+      padding: .9rem 1rem;
+      background: #f9fbff;
+    }
+    .post-card .step-badge {
+      display: inline-block;
+      background: #0f3460;
+      color: #e2b96f;
+      font-size: .7rem;
+      font-weight: bold;
+      border-radius: 12px;
+      padding: 2px 8px;
+      margin-bottom: .4rem;
+    }
+    .post-card h4 { font-size: .9rem; color: #16213e; margin-bottom: .3rem; }
+    .post-card p  { font-size: .8rem; color: #555; }
+
+    /* ─── 图例色块 ─── */
+    .legend-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .6rem;
+      margin-top: .6rem;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .82rem;
+    }
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    /* ─── 页脚 ─── */
+    footer {
+      text-align: center;
+      font-size: .8rem;
+      color: #888;
+      padding: 1.5rem 1rem 2rem;
+    }
+    footer a { color: #7ec8e3; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     顶部横幅
+════════════════════════════════════════════════ -->
+<header>
+  <h1>🔍 Web Search → LLM 端到端流程解析</h1>
+  <p>
+    基于源码 <code>03-claude-code-runnable/src/tools/WebSearchTool/WebSearchTool.ts</code> 的完整中文说明
+  </p>
+  <p style="margin-top:.4rem; font-size:.8rem;">
+    覆盖：流式调用 · server_tool_use · input_json_delta · web_search_tool_result · 结果解析 · 后处理管道
+  </p>
+</header>
+
+<!-- ════════════════════════════════════════════════
+     导航
+════════════════════════════════════════════════ -->
+<nav>
+  <a href="#flow-text">① 终端步骤流</a>
+  <a href="#flowchart">② SVG 流程图</a>
+  <a href="#post-processing">③ 后处理管道</a>
+  <a href="#code-refs">④ 代码行引用</a>
+  <a href="#limitations">⑤ 限制与隐私</a>
+</nav>
+
+<!-- ════════════════════════════════════════════════
+     主内容区
+════════════════════════════════════════════════ -->
+<main>
+
+  <!-- ──────────────────────────────────────────
+       § 1  终端风格步骤流
+  ────────────────────────────────────────── -->
+  <section id="flow-text">
+    <h2>① 端到端步骤流（终端风格）</h2>
+    <p style="margin-bottom:.9rem; color:#555; font-size:.9rem;">
+      以下 16 个步骤完整描述了从用户输入关键词到 LLM 返回最终答案的全过程。括号内为 <code>WebSearchTool.ts</code> 的对应行号。
+    </p>
+    <div class="terminal">
+<span class="comment"># ───────────────────────────────────────────────────────────────
+# WebSearch 工具 端到端执行流
+# 源文件：03-claude-code-runnable/src/tools/WebSearchTool/WebSearchTool.ts
+# ───────────────────────────────────────────────────────────────</span>
+
+<span class="step-num">[STEP 01]</span> <span class="step-name">用户发起查询</span>                    <span class="code-ref">← 用户/Agent 调用 WebSearchTool</span>
+  <span class="arrow">▶</span> 输入参数: <span class="highlight">query</span> (必填, 最少2字符)
+             <span class="highlight">allowed_domains?</span>  (可选, 白名单域名)
+             <span class="highlight">blocked_domains?</span>  (可选, 黑名单域名)
+
+<span class="step-num">[STEP 02]</span> <span class="step-name">validateInput — 输入校验</span>          <span class="code-ref">← lines 235-253</span>
+  <span class="arrow">▶</span> 检查 query 非空
+  <span class="arrow">▶</span> allowed_domains 与 blocked_domains 不能同时存在
+  <span class="arrow">▶</span> 校验失败 → 立即返回错误; 校验通过 → 进入 call()
+
+<span class="step-num">[STEP 03]</span> <span class="step-name">call() — 记录开始时间</span>             <span class="code-ref">← line 255</span>
+  <span class="arrow">▶</span> startTime = performance.now()
+
+<span class="step-num">[STEP 04]</span> <span class="step-name">构建请求消息</span>                      <span class="code-ref">← lines 257-260</span>
+  <span class="arrow">▶</span> createUserMessage({ content: "Perform a web search for the query: " + query })
+  <span class="arrow">▶</span> makeToolSchema(input) → BetaWebSearchTool20250305
+       type: 'web_search_20250305'  name: 'web_search'
+       max_uses: <span class="highlight">8</span>  （每次调用最多 8 次独立搜索）
+       allowed_domains / blocked_domains 透传
+
+<span class="step-num">[STEP 05]</span> <span class="step-name">模型选择</span>                          <span class="code-ref">← lines 262-265</span>
+  <span class="arrow">▶</span> 读取 Feature Flag 'tengu_plum_vx3'
+       → true  : 使用 小快模型 (Haiku), 强制 toolChoice = 'web_search', 关闭 thinking
+       → false : 使用 主循环模型 (Sonnet/Opus), 保留 thinkingConfig
+
+<span class="step-num">[STEP 06]</span> <span class="step-name">queryModelWithStreaming — 发起流式请求</span>  <span class="code-ref">← lines 268-291</span>
+  <span class="arrow">▶</span> 调用 Anthropic/Vertex/Foundry API (根据 provider 配置)
+  <span class="arrow">▶</span> systemPrompt: "You are an assistant for performing a web search tool use"
+  <span class="arrow">▶</span> extraToolSchemas: [toolSchema]  → 服务端注入 web_search 工具
+  <span class="arrow">▶</span> querySource: 'web_search_tool'
+  <span class="arrow">▶</span> 返回异步迭代器 queryStream
+
+<span class="step-num">[STEP 07]</span> <span class="step-name">流式事件循环 (for await)</span>           <span class="code-ref">← lines 299-388</span>
+  <span class="arrow">▶</span> 遍历 queryStream 中每一个 event:
+
+  <span class="comment">  ┌── event.type === 'assistant' ──────────────────────────────────────────</span>
+  <span class="arrow">  │</span> → 将 message.content 追加到 allContentBlocks[]            <span class="code-ref">lines 300-303</span>
+  <span class="comment">  │   (最终用于 makeOutputFromSearchResponse 解析)
+  │</span>
+  <span class="comment">  ├── stream_event: content_block_start + server_tool_use ─────────────────</span>
+  <span class="arrow">  │</span> → 记录 currentToolUseId = contentBlock.id                 <span class="code-ref">lines 306-318</span>
+  <span class="arrow">  │</span> → 重置 currentToolUseJson = ''
+  <span class="comment">  │   server_tool_use 是服务端触发 web_search 的标志
+  │</span>
+  <span class="comment">  ├── stream_event: content_block_delta + input_json_delta ─────────────────</span>
+  <span class="arrow">  │</span> → 累积 partial_json 到 currentToolUseJson                  <span class="code-ref">lines 321-360</span>
+  <span class="arrow">  │</span> → 用正则 /"query"\s*:\s*"((?:[^"\\]|\\.)*)"/ 提取 query 字段
+  <span class="arrow">  │</span> → 首次成功提取后: onProgress({ type: 'query_update', query })
+  <span class="comment">  │   → UI 实时显示: "Searching: &lt;query&gt;"
+  │</span>
+  <span class="comment">  └── stream_event: content_block_start + web_search_tool_result ──────────</span>
+    <span class="arrow">  </span>→ 服务端已完成搜索, 结果随 block 推入                       <span class="code-ref">lines 363-387</span>
+    <span class="arrow">  </span>→ 读取 contentBlock.content 中的结果数组 (title, url, snippet, ...)
+    <span class="arrow">  </span>→ onProgress({ type: 'search_results_received', resultCount, query })
+      <span class="comment">→ UI 实时显示: "Found N results for &lt;query&gt;"</span>
+
+<span class="step-num">[STEP 08]</span> <span class="step-name">计算耗时</span>                          <span class="code-ref">← lines 391-393</span>
+  <span class="arrow">▶</span> durationSeconds = (performance.now() - startTime) / 1000
+
+<span class="step-num">[STEP 09]</span> <span class="step-name">makeOutputFromSearchResponse — 解析所有 content blocks</span>  <span class="code-ref">← lines 86-150</span>
+  <span class="arrow">▶</span> 遍历 allContentBlocks[]:
+  <span class="comment">
+       blocks 的典型顺序:
+       [text?] [server_tool_use, web_search_tool_result, text+citation]+ [text?]
+  </span>
+  <span class="arrow">▶</span> <span class="highlight">server_tool_use</span>        → 跳过; 若 textAcc 非空则推入 results[]
+  <span class="arrow">▶</span> <span class="highlight">web_search_tool_result</span> → content 为数组: 提取 {title, url} 推入 results[]
+                            content 非数组 (错误): 推入错误字符串
+  <span class="arrow">▶</span> <span class="highlight">text</span>                   → 累积到 textAcc (摘要/引用/注释)
+  <span class="arrow">▶</span> 循环结束后若 textAcc 非空 → 推入 results[]
+
+  <span class="arrow">▶</span> 返回 Output: { query, results: (SearchResult | string)[], durationSeconds }
+
+<span class="step-num">[STEP 10]</span> <span class="step-name">renderToolResultMessage — UI 展示</span>  <span class="code-ref">← UI.tsx lines 79-92</span>
+  <span class="arrow">▶</span> 统计 searchCount, 格式化 timeDisplay
+  <span class="arrow">▶</span> 展示: <span class="highlight">"Did N search(es) in Xs"</span>
+
+<span class="step-num">[STEP 11]</span> <span class="step-name">mapToolResultToToolResultBlockParam — 组装回送给 LLM 的 tool_result</span>
+                                           <span class="code-ref">← lines 401-434</span>
+  <span class="arrow">▶</span> formattedOutput = 'Web search results for query: "&lt;query&gt;"\n\n'
+  <span class="arrow">▶</span> 遍历 results[]:
+       string  → 直接追加 (文本摘要)
+       SearchResult → 追加 'Links: [{"title":"...","url":"..."},...]'
+       null/undefined → 跳过 (防 JSON 往返反序列化产生的空项)
+  <span class="arrow">▶</span> 末尾追加 REMINDER: 必须将来源以 Markdown 超链接包含在回复中
+  <span class="arrow">▶</span> 返回 { tool_use_id, type: 'tool_result', content: formattedOutput }
+
+<span class="step-num">[STEP 12]</span> <span class="step-name">LLM 生成最终回答</span>
+  <span class="arrow">▶</span> 主循环模型接收 tool_result block
+  <span class="arrow">▶</span> 依据搜索摘要 + 链接 + prompt 要求生成自然语言回答
+  <span class="arrow">▶</span> 回答末尾必须包含 Sources 章节 (由 prompt.ts getWebSearchPrompt() 要求)
+
+<span class="comment"># ─── 执行结束 ───────────────────────────────────────────────────────────</span>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────
+       § 2  SVG 流程图
+  ────────────────────────────────────────── -->
+  <section id="flowchart">
+    <h2>② SVG 流程图</h2>
+    <p style="margin-bottom:.9rem; font-size:.9rem; color:#555;">
+      下图为上述步骤的可视化映射。颜色图例见图下方。
+    </p>
+    <div class="svg-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 1540" width="860" font-family="'PingFang SC','Microsoft YaHei',Arial,sans-serif" font-size="13">
+        <defs>
+          <!-- 箭头 -->
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#555"/>
+          </marker>
+          <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#3498db"/>
+          </marker>
+          <marker id="arr-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#e67e22"/>
+          </marker>
+          <marker id="arr-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#27ae60"/>
+          </marker>
+        </defs>
+
+        <!-- 背景 -->
+        <rect width="860" height="1540" rx="14" fill="#f4f6fb"/>
+
+        <!-- ── 节点定义 ── (cx, cy = 中心) -->
+
+        <!-- S0: 用户查询 -->
+        <ellipse cx="430" cy="55" rx="180" ry="32" fill="#0f3460" stroke="#e2b96f" stroke-width="2"/>
+        <text x="430" y="59" text-anchor="middle" fill="#e2b96f" font-weight="bold" font-size="14">① 用户输入关键词查询</text>
+
+        <!-- 箭头 S0→S1 -->
+        <line x1="430" y1="87" x2="430" y2="112" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S1: validateInput -->
+        <rect x="260" y="112" width="340" height="50" rx="10" fill="#16213e" stroke="#7ec8e3" stroke-width="1.5"/>
+        <text x="430" y="133" text-anchor="middle" fill="#7ec8e3" font-weight="bold">② validateInput 校验</text>
+        <text x="430" y="153" text-anchor="middle" fill="#a0aec0" font-size="11">query非空 · allowed/blocked_domains 互斥</text>
+
+        <!-- 菱形：校验结果 -->
+        <line x1="430" y1="162" x2="430" y2="185" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+        <polygon points="430,185 520,215 430,245 340,215" fill="#fff" stroke="#e74c3c" stroke-width="1.5"/>
+        <text x="430" y="213" text-anchor="middle" fill="#e74c3c" font-weight="bold" font-size="12">校验</text>
+        <text x="430" y="229" text-anchor="middle" fill="#e74c3c" font-size="11">通过/失败?</text>
+
+        <!-- 失败分支 -->
+        <line x1="520" y1="215" x2="700" y2="215" stroke="#e74c3c" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+        <rect x="700" y="195" width="120" height="40" rx="8" fill="#fdf0ef" stroke="#e74c3c" stroke-width="1.5"/>
+        <text x="760" y="213" text-anchor="middle" fill="#e74c3c" font-size="11" font-weight="bold">返回错误</text>
+        <text x="760" y="228" text-anchor="middle" fill="#e74c3c" font-size="10">errorCode 1 或 2</text>
+        <text x="612" y="207" text-anchor="middle" fill="#e74c3c" font-size="11">失败</text>
+
+        <!-- 通过分支 -->
+        <line x1="430" y1="245" x2="430" y2="270" stroke="#27ae60" stroke-width="1.5" marker-end="url(#arr-green)"/>
+        <text x="445" y="261" fill="#27ae60" font-size="11">通过</text>
+
+        <!-- S2: call() 开始计时 -->
+        <rect x="260" y="270" width="340" height="42" rx="10" fill="#1a1a2e" stroke="#7ec8e3" stroke-width="1.5"/>
+        <text x="430" y="288" text-anchor="middle" fill="#7ec8e3" font-weight="bold">③ call() — 记录 startTime</text>
+        <text x="430" y="305" text-anchor="middle" fill="#a0aec0" font-size="11">line 255: performance.now()</text>
+
+        <!-- 箭头 -->
+        <line x1="430" y1="312" x2="430" y2="335" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S3: 构建请求 -->
+        <rect x="220" y="335" width="420" height="58" rx="10" fill="#0f3460" stroke="#e2b96f" stroke-width="1.5"/>
+        <text x="430" y="356" text-anchor="middle" fill="#e2b96f" font-weight="bold">④ 构建请求消息 &amp; makeToolSchema</text>
+        <text x="430" y="373" text-anchor="middle" fill="#c0cfe8" font-size="11">createUserMessage · BetaWebSearchTool20250305</text>
+        <text x="430" y="387" text-anchor="middle" fill="#c0cfe8" font-size="11">max_uses=8 · 域名过滤透传  (lines 257-260, 76-84)</text>
+
+        <!-- 箭头 -->
+        <line x1="430" y1="393" x2="430" y2="416" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S4: 模型选择 -->
+        <polygon points="430,416 560,445 430,474 300,445" fill="#fff" stroke="#9b59b6" stroke-width="1.5"/>
+        <text x="430" y="442" text-anchor="middle" fill="#9b59b6" font-size="12" font-weight="bold">⑤ Feature Flag</text>
+        <text x="430" y="458" text-anchor="middle" fill="#9b59b6" font-size="11">tengu_plum_vx3</text>
+
+        <!-- Flag=true -->
+        <line x1="300" y1="445" x2="175" y2="445" stroke="#9b59b6" stroke-width="1.5" marker-end="url(#arr)"/>
+        <rect x="60" y="425" width="115" height="40" rx="8" fill="#f5eeff" stroke="#9b59b6" stroke-width="1.5"/>
+        <text x="117" y="443" text-anchor="middle" fill="#9b59b6" font-size="11" font-weight="bold">Haiku 模型</text>
+        <text x="117" y="457" text-anchor="middle" fill="#9b59b6" font-size="10">强制 toolChoice</text>
+        <text x="232" y="437" fill="#9b59b6" font-size="10">true</text>
+
+        <!-- Flag=false -->
+        <line x1="560" y1="445" x2="680" y2="445" stroke="#9b59b6" stroke-width="1.5" marker-end="url(#arr)"/>
+        <rect x="680" y="425" width="135" height="40" rx="8" fill="#f5eeff" stroke="#9b59b6" stroke-width="1.5"/>
+        <text x="747" y="443" text-anchor="middle" fill="#9b59b6" font-size="11" font-weight="bold">主循环模型</text>
+        <text x="747" y="457" text-anchor="middle" fill="#9b59b6" font-size="10">Sonnet / Opus</text>
+        <text x="600" y="437" fill="#9b59b6" font-size="10">false</text>
+
+        <!-- 两分支汇入 -->
+        <line x1="117" y1="465" x2="117" y2="510" stroke="#555" stroke-width="1.2"/>
+        <line x1="747" y1="465" x2="747" y2="510" stroke="#555" stroke-width="1.2"/>
+        <line x1="117" y1="510" x2="430" y2="510" stroke="#555" stroke-width="1.2"/>
+        <line x1="747" y1="510" x2="430" y2="510" stroke="#555" stroke-width="1.2"/>
+        <line x1="430" y1="510" x2="430" y2="530" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S5: queryModelWithStreaming -->
+        <rect x="175" y="530" width="510" height="55" rx="10" fill="#0f6b3c" stroke="#27ae60" stroke-width="2"/>
+        <text x="430" y="552" text-anchor="middle" fill="#e8f8ef" font-weight="bold" font-size="13">⑥ queryModelWithStreaming (流式请求)</text>
+        <text x="430" y="570" text-anchor="middle" fill="#a8e6c8" font-size="11">lines 268-291 · 返回异步迭代器 queryStream</text>
+
+        <!-- 箭头 -->
+        <line x1="430" y1="585" x2="430" y2="610" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S6: 流式事件循环 外框 -->
+        <rect x="90" y="610" width="680" height="440" rx="12" fill="#fff9ed" stroke="#e67e22" stroke-width="2" stroke-dasharray="6,3"/>
+        <text x="430" y="632" text-anchor="middle" fill="#e67e22" font-weight="bold" font-size="12">⑦ for await (event of queryStream)  (lines 299-388)</text>
+
+        <!-- 子节点 A: assistant -->
+        <rect x="120" y="645" width="280" height="48" rx="8" fill="#fffbe6" stroke="#e2b96f" stroke-width="1.5"/>
+        <text x="260" y="664" text-anchor="middle" fill="#7a5c00" font-size="12" font-weight="bold">event = 'assistant'</text>
+        <text x="260" y="682" text-anchor="middle" fill="#7a5c00" font-size="10">push → allContentBlocks[]  (L300-303)</text>
+
+        <!-- 子节点 B: server_tool_use -->
+        <rect x="120" y="710" width="280" height="55" rx="8" fill="#e8f4fd" stroke="#3498db" stroke-width="1.5"/>
+        <text x="260" y="729" text-anchor="middle" fill="#154360" font-size="12" font-weight="bold">content_block_start</text>
+        <text x="260" y="745" text-anchor="middle" fill="#154360" font-size="11" font-weight="bold">+ server_tool_use</text>
+        <text x="260" y="759" text-anchor="middle" fill="#2471a3" font-size="10">记录 currentToolUseId  (L306-318)</text>
+
+        <!-- 子节点 C: input_json_delta -->
+        <rect x="120" y="782" width="280" height="70" rx="8" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+        <text x="260" y="800" text-anchor="middle" fill="#1a5e38" font-size="12" font-weight="bold">content_block_delta</text>
+        <text x="260" y="816" text-anchor="middle" fill="#1a5e38" font-size="11" font-weight="bold">+ input_json_delta</text>
+        <text x="260" y="830" text-anchor="middle" fill="#27ae60" font-size="10">累积 JSON → 提取 query (L321-360)</text>
+        <text x="260" y="845" text-anchor="middle" fill="#27ae60" font-size="10">onProgress: query_update → UI "Searching..."</text>
+
+        <!-- 子节点 D: web_search_tool_result -->
+        <rect x="120" y="869" width="280" height="70" rx="8" fill="#fdf0ef" stroke="#e74c3c" stroke-width="1.5"/>
+        <text x="260" y="887" text-anchor="middle" fill="#6b1e1e" font-size="12" font-weight="bold">content_block_start</text>
+        <text x="260" y="903" text-anchor="middle" fill="#6b1e1e" font-size="11" font-weight="bold">+ web_search_tool_result</text>
+        <text x="260" y="919" text-anchor="middle" fill="#e74c3c" font-size="10">服务端搜索完成，结果推入  (L363-387)</text>
+        <text x="260" y="934" text-anchor="middle" fill="#e74c3c" font-size="10">onProgress: search_results_received → UI</text>
+
+        <!-- 右侧说明框 -->
+        <rect x="440" y="645" width="300" height="294" rx="8" fill="#fff" stroke="#ccc" stroke-width="1"/>
+        <text x="590" y="665" text-anchor="middle" fill="#555" font-size="11" font-weight="bold">服务端处理（Claude API）</text>
+        <line x1="590" y1="672" x2="590" y2="680" stroke="#ccc"/>
+        <text x="450" y="698" fill="#555" font-size="10">1. 接收 server_tool_use 信号</text>
+        <text x="450" y="715" fill="#555" font-size="10">2. 调用内置 web_search 能力</text>
+        <text x="450" y="732" fill="#555" font-size="10">3. 爬取目标页面 HTML</text>
+        <text x="450" y="749" fill="#555" font-size="10">4. 清洗 DOM，提取正文</text>
+        <text x="450" y="766" fill="#555" font-size="10">5. 分块 (chunking)</text>
+        <text x="450" y="783" fill="#555" font-size="10">6. 向量嵌入与相关性排序</text>
+        <text x="450" y="800" fill="#555" font-size="10">7. 组合片段生成搜索摘要</text>
+        <text x="450" y="817" fill="#555" font-size="10">8. 以 web_search_tool_result 回送</text>
+        <text x="450" y="842" fill="#777" font-size="9" font-style="italic">* 步骤 3-7 在 Anthropic 服务器端执行，</text>
+        <text x="450" y="855" fill="#777" font-size="9" font-style="italic">  客户端代码不可见此细节</text>
+        <rect x="444" y="866" width="288" height="62" rx="6" fill="#fff9ed" stroke="#e2b96f"/>
+        <text x="588" y="884" text-anchor="middle" fill="#7a5c00" font-size="10" font-weight="bold">⚠ 仅限美国地区可用</text>
+        <text x="588" y="900" text-anchor="middle" fill="#7a5c00" font-size="10">max_uses = 8（每次工具调用上限）</text>
+        <text x="588" y="916" text-anchor="middle" fill="#7a5c00" font-size="10">首方/Vertex/Foundry provider 才启用</text>
+
+        <!-- 连接线：子节点 A-D 到右侧 -->
+        <line x1="400" y1="669" x2="440" y2="720" stroke="#bbb" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="400" y1="737" x2="440" y2="737" stroke="#3498db" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="400" y1="817" x2="440" y2="795" stroke="#27ae60" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="400" y1="904" x2="440" y2="870" stroke="#e74c3c" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- 流式循环结束箭头 -->
+        <line x1="430" y1="1050" x2="430" y2="1075" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S7: 计算耗时 -->
+        <rect x="280" y="1075" width="300" height="42" rx="10" fill="#1a1a2e" stroke="#7ec8e3" stroke-width="1.5"/>
+        <text x="430" y="1093" text-anchor="middle" fill="#7ec8e3" font-weight="bold">⑧ 计算 durationSeconds</text>
+        <text x="430" y="1110" text-anchor="middle" fill="#a0aec0" font-size="11">lines 391-393</text>
+
+        <!-- 箭头 -->
+        <line x1="430" y1="1117" x2="430" y2="1140" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S8: makeOutputFromSearchResponse -->
+        <rect x="165" y="1140" width="530" height="72" rx="10" fill="#0f3460" stroke="#e2b96f" stroke-width="2"/>
+        <text x="430" y="1161" text-anchor="middle" fill="#e2b96f" font-weight="bold" font-size="13">⑨ makeOutputFromSearchResponse 解析</text>
+        <text x="430" y="1179" text-anchor="middle" fill="#c0cfe8" font-size="11">遍历 allContentBlocks[]  (lines 86-150)</text>
+        <text x="430" y="1197" text-anchor="middle" fill="#c0cfe8" font-size="10">server_tool_use→跳过 · web_search_tool_result→提取links · text→累积摘要</text>
+
+        <!-- 箭头 -->
+        <line x1="430" y1="1212" x2="430" y2="1235" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S9: mapToolResultToToolResultBlockParam -->
+        <rect x="155" y="1235" width="550" height="65" rx="10" fill="#16213e" stroke="#7ec8e3" stroke-width="1.5"/>
+        <text x="430" y="1255" text-anchor="middle" fill="#7ec8e3" font-weight="bold">⑩ mapToolResultToToolResultBlockParam</text>
+        <text x="430" y="1272" text-anchor="middle" fill="#a0aec0" font-size="11">lines 401-434  组装 tool_result block</text>
+        <text x="430" y="1289" text-anchor="middle" fill="#a0aec0" font-size="10">"Links: [...]" + REMINDER 必须包含 Sources Markdown 超链接</text>
+
+        <!-- 箭头 -->
+        <line x1="430" y1="1300" x2="430" y2="1323" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S10: LLM 生成最终回答 -->
+        <rect x="165" y="1323" width="550" height="60" rx="10" fill="#0f6b3c" stroke="#27ae60" stroke-width="2"/>
+        <text x="430" y="1345" text-anchor="middle" fill="#e8f8ef" font-weight="bold" font-size="13">⑪ LLM 生成最终回答</text>
+        <text x="430" y="1363" text-anchor="middle" fill="#a8e6c8" font-size="11">主循环模型依据摘要+链接生成自然语言回答</text>
+        <text x="430" y="1378" text-anchor="middle" fill="#a8e6c8" font-size="10">末尾必须包含 Sources 章节（prompt.ts 要求）</text>
+
+        <!-- 箭头 -->
+        <line x1="430" y1="1383" x2="430" y2="1406" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- S11: UI 展示 -->
+        <ellipse cx="430" cy="1430" rx="210" ry="35" fill="#e2b96f" stroke="#0f3460" stroke-width="2"/>
+        <text x="430" y="1425" text-anchor="middle" fill="#0f3460" font-weight="bold" font-size="13">⑫ renderToolResultMessage</text>
+        <text x="430" y="1444" text-anchor="middle" fill="#0f3460" font-size="11">"Did N search(es) in Xs"  (UI.tsx L79-92)</text>
+
+        <!-- 底部说明 -->
+        <text x="430" y="1495" text-anchor="middle" fill="#888" font-size="10">* 虚线框内为流式事件循环区域</text>
+        <text x="430" y="1512" text-anchor="middle" fill="#888" font-size="10">* 蓝色→服务端触发搜索  绿色→进度回调  橙色→错误分支</text>
+        <text x="430" y="1529" text-anchor="middle" fill="#888" font-size="10">源文件: 03-claude-code-runnable/src/tools/WebSearchTool/WebSearchTool.ts</text>
+      </svg>
+    </div>
+
+    <!-- 图例 -->
+    <div class="legend-grid" style="margin-top:1rem;">
+      <div class="legend-item"><div class="legend-color" style="background:#0f3460;"></div>入口/出口节点</div>
+      <div class="legend-item"><div class="legend-color" style="background:#16213e; border:1px solid #7ec8e3;"></div>处理步骤</div>
+      <div class="legend-item"><div class="legend-color" style="background:#0f6b3c;"></div>流式请求 / 最终输出</div>
+      <div class="legend-item"><div class="legend-color" style="background:#e8f4fd; border:1px solid #3498db;"></div>server_tool_use 事件</div>
+      <div class="legend-item"><div class="legend-color" style="background:#eafaf1; border:1px solid #27ae60;"></div>input_json_delta 事件</div>
+      <div class="legend-item"><div class="legend-color" style="background:#fdf0ef; border:1px solid #e74c3c;"></div>web_search_tool_result 事件</div>
+      <div class="legend-item"><div class="legend-color" style="background:#f5eeff; border:1px solid #9b59b6;"></div>模型选择（Feature Flag）</div>
+      <div class="legend-item"><div class="legend-color" style="background:#fffbe6; border:1px solid #e2b96f;"></div>流式循环区内 assistant 事件</div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────
+       § 3  后处理管道
+  ────────────────────────────────────────── -->
+  <section id="post-processing">
+    <h2>③ web_search_tool_result 到达后的服务端后处理管道</h2>
+
+    <div class="callout info">
+      <strong>📌 重要说明</strong>
+      当客户端代码（WebSearchTool.ts）收到 <code>web_search_tool_result</code> 块时，
+      HTML 的抓取与 DOM 解析<strong>已由 Anthropic 服务器端完成</strong>。
+      客户端仅接收到结构化的搜索结果（title、url、snippet 等字段），不会直接处理原始 HTML。
+      以下是服务端的典型后处理步骤。
+    </div>
+
+    <div class="post-steps">
+      <div class="post-card">
+        <span class="step-badge">步骤 1</span>
+        <h4>🌐 获取 HTML</h4>
+        <p>服务端对搜索引擎返回的每个 URL 发起 HTTP 请求，获取目标页面的原始 HTML 内容。</p>
+      </div>
+      <div class="post-card">
+        <span class="step-badge">步骤 2</span>
+        <h4>🧹 HTML 清洗</h4>
+        <p>去除 <code>&lt;script&gt;</code>、<code>&lt;style&gt;</code>、广告 iframe、导航栏、侧边栏等噪音节点，进行字符集标准化（UTF-8）。</p>
+      </div>
+      <div class="post-card">
+        <span class="step-badge">步骤 3</span>
+        <h4>📄 提取主内容</h4>
+        <p>使用正文抽取算法（Readability/jusText/boilerpipe 类），识别最大连续文本块或语义 <code>&lt;article&gt;</code> 标签，提取核心正文。</p>
+      </div>
+      <div class="post-card">
+        <span class="step-badge">步骤 4</span>
+        <h4>✂️ 分块（Chunking）</h4>
+        <p>将长文本按语义边界（段落、句子）切分为固定 token 上限的片段，便于后续嵌入与检索。</p>
+      </div>
+      <div class="post-card">
+        <span class="step-badge">步骤 5</span>
+        <h4>🔢 向量嵌入与索引</h4>
+        <p>对每个文本块生成稠密向量（embedding），建立近似最近邻索引，供相关性检索使用。</p>
+      </div>
+      <div class="post-card">
+        <span class="step-badge">步骤 6</span>
+        <h4>🏆 相关性排序</h4>
+        <p>计算查询向量与文档块向量的余弦相似度，结合 BM25/reranker 等方法，筛选最相关的 top-K 片段。</p>
+      </div>
+      <div class="post-card">
+        <span class="step-badge">步骤 7</span>
+        <h4>📝 组合最终摘要</h4>
+        <p>将 top-K 片段与元数据（title、url）拼接，构成传给 LLM 的上下文；服务端将此内容封装为 <code>web_search_tool_result</code> 块流式回送给客户端。</p>
+      </div>
+      <div class="post-card">
+        <span class="step-badge">步骤 8</span>
+        <h4>📩 回送客户端</h4>
+        <p>服务端以 SSE/流式方式将 <code>web_search_tool_result</code> 块推送回客户端，客户端 <code>makeOutputFromSearchResponse</code> 解析 title 和 url，组装 tool_result 供 LLM 生成最终回答。</p>
+      </div>
+    </div>
+
+    <div class="callout warn" style="margin-top:1.5rem;">
+      <strong>⚙️ 客户端可见内容</strong>
+      WebSearchTool.ts 中 <code>makeOutputFromSearchResponse</code>（lines 86-150）只能访问
+      <code>web_search_tool_result</code> 块中的 <strong>title</strong> 和 <strong>url</strong> 字段。
+      正文内容、snippet、ranking 分数等均已在服务端处理完毕，客户端仅获得结构化链接列表及 LLM 生成的文本摘要。
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────
+       § 4  代码行引用
+  ────────────────────────────────────────── -->
+  <section id="code-refs">
+    <h2>④ 关键代码行引用（WebSearchTool.ts）</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>步骤</th>
+          <th>代码行</th>
+          <th>关键符号 / 功能</th>
+          <th>中文说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>输入模型定义</td>
+          <td>25–37</td>
+          <td><code>inputSchema</code></td>
+          <td>定义 query（必填）、allowed_domains、blocked_domains 输入结构</td>
+        </tr>
+        <tr>
+          <td>工具模式构建</td>
+          <td>76–84</td>
+          <td><code>makeToolSchema</code></td>
+          <td>构造 BetaWebSearchTool20250305，硬编码 max_uses=8</td>
+        </tr>
+        <tr>
+          <td>解析响应</td>
+          <td>86–150</td>
+          <td><code>makeOutputFromSearchResponse</code></td>
+          <td>遍历 content blocks，提取 SearchResult 和文本摘要</td>
+        </tr>
+        <tr>
+          <td>工具启用判断</td>
+          <td>168–193</td>
+          <td><code>isEnabled()</code></td>
+          <td>仅 firstParty / Vertex(Claude 4.0+) / Foundry provider 启用</td>
+        </tr>
+        <tr>
+          <td>输入校验</td>
+          <td>235–253</td>
+          <td><code>validateInput</code></td>
+          <td>query 非空；allowed/blocked 域名不能同时设置</td>
+        </tr>
+        <tr>
+          <td>主执行函数</td>
+          <td>254–399</td>
+          <td><code>call()</code></td>
+          <td>核心执行函数：计时、构建消息、调用流式 API、处理事件流</td>
+        </tr>
+        <tr>
+          <td>发起流式请求</td>
+          <td>268–291</td>
+          <td><code>queryModelWithStreaming</code></td>
+          <td>向 LLM 发起流式请求，注入 web_search 工具 schema</td>
+        </tr>
+        <tr>
+          <td>收集 content blocks</td>
+          <td>300–303</td>
+          <td><code>event.type === 'assistant'</code></td>
+          <td>将完整 message.content 追加至 allContentBlocks[]</td>
+        </tr>
+        <tr>
+          <td>捕获搜索触发</td>
+          <td>306–318</td>
+          <td><code>server_tool_use</code></td>
+          <td>记录 currentToolUseId，准备接收 JSON 增量</td>
+        </tr>
+        <tr>
+          <td>解析搜索词</td>
+          <td>321–360</td>
+          <td><code>input_json_delta</code></td>
+          <td>累积 partial_json，用正则提取 query 字段，触发 query_update 进度回调</td>
+        </tr>
+        <tr>
+          <td>搜索结果到达</td>
+          <td>363–387</td>
+          <td><code>web_search_tool_result</code></td>
+          <td>服务端搜索完成，触发 search_results_received 进度回调，UI 显示结果数量</td>
+        </tr>
+        <tr>
+          <td>格式化输出</td>
+          <td>401–434</td>
+          <td><code>mapToolResultToToolResultBlockParam</code></td>
+          <td>将搜索结果组装为 tool_result block，强制要求在回答中包含来源超链接</td>
+        </tr>
+        <tr>
+          <td>UI 进度显示</td>
+          <td>UI.tsx 55–78</td>
+          <td><code>renderToolUseProgressMessage</code></td>
+          <td>显示"Searching: ..."或"Found N results for ..."实时状态</td>
+        </tr>
+        <tr>
+          <td>UI 结果展示</td>
+          <td>UI.tsx 79–92</td>
+          <td><code>renderToolResultMessage</code></td>
+          <td>显示"Did N search(es) in Xs"最终汇总</td>
+        </tr>
+        <tr>
+          <td>Prompt 要求</td>
+          <td>prompt.ts 5–34</td>
+          <td><code>getWebSearchPrompt</code></td>
+          <td>要求 LLM 在回答末尾必须附加 Sources 章节（Markdown 超链接格式）</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ──────────────────────────────────────────
+       § 5  限制与隐私
+  ────────────────────────────────────────── -->
+  <section id="limitations">
+    <h2>⑤ 限制与隐私 / Robots 注意事项</h2>
+
+    <h3>🌍 地域与模型限制</h3>
+    <div class="callout warn">
+      <strong>仅限美国地区</strong>
+      Web Search 功能目前仅在美国地区可用（<code>prompt.ts</code>："Web search is only available in the US"）。
+      非美国地区的请求将无法触发搜索。
+    </div>
+    <div class="callout warn">
+      <strong>Provider 限制</strong>
+      仅以下 API 提供商支持（<code>isEnabled()</code> lines 168-193）：
+      <ul style="margin-top:.4rem;">
+        <li><strong>firstParty</strong>（Anthropic 官方 API）：无条件启用</li>
+        <li><strong>Vertex AI</strong>：仅支持 Claude Opus 4 / Sonnet 4 / Haiku 4 及以上</li>
+        <li><strong>Foundry</strong>：无条件启用（仅部署兼容模型）</li>
+        <li><strong>其他 provider</strong>（如 Bedrock、自定义端点）：<span style="color:#e74c3c;">不支持</span></li>
+      </ul>
+    </div>
+    <div class="callout info">
+      <strong>单次调用上限</strong>
+      每次 WebSearchTool 调用最多执行 <strong>8 次</strong>独立搜索（<code>makeToolSchema</code> line 82: <code>max_uses: 8</code>）。
+    </div>
+
+    <h3>🔒 隐私与安全</h3>
+    <div class="callout danger">
+      <strong>查询内容泄露风险</strong>
+      用户的查询关键词会通过 Anthropic API 发送至搜索引擎。请避免在查询中包含：
+      <ul style="margin-top:.4rem;">
+        <li>个人身份信息（姓名、身份证、手机号等）</li>
+        <li>企业内部机密信息</li>
+        <li>密码或密钥</li>
+      </ul>
+    </div>
+    <div class="callout info">
+      <strong>域名过滤</strong>
+      可通过 <code>allowed_domains</code> 和 <code>blocked_domains</code> 参数控制搜索范围，但两者不能同时使用。
+    </div>
+
+    <h3>🤖 Robots.txt 与爬取礼仪</h3>
+    <div class="callout warn">
+      <strong>服务端遵守 robots.txt</strong>
+      Anthropic 服务端在抓取 URL 内容时，应（且通常会）遵守目标站点的 <code>robots.txt</code> 规则。
+      若某站点禁止爬虫，该页面内容将不会被处理或返回给客户端。
+      <ul style="margin-top:.4rem;">
+        <li>使用 <code>blocked_domains</code> 可主动排除不希望被访问的域名</li>
+        <li>频繁对同一域名发起大量搜索请求，可能导致 IP 被该站点暂时封禁</li>
+        <li>部分网站需要 JavaScript 渲染，服务端静态抓取可能内容不完整</li>
+      </ul>
+    </div>
+
+    <h3>📊 数据准确性限制</h3>
+    <div class="callout info">
+      <strong>时效性</strong>
+      搜索结果受搜索引擎索引延迟影响，最新事件（几分钟内）可能无法检索到。
+      <code>getWebSearchPrompt()</code> 会注入当前月份年份，以帮助 LLM 构造更精准的查询。
+    </div>
+    <div class="callout info">
+      <strong>内容可靠性</strong>
+      搜索结果来源于互联网公开内容，LLM 的摘要可能包含错误信息。
+      代码强制要求在回答中包含 Sources 超链接（<code>mapToolResultToToolResultBlockParam</code> line 427），
+      用户应自行核实来源。
+    </div>
+    <div class="callout danger">
+      <strong>无秘密注入</strong>
+      本工具代码中不包含任何 API key、搜索引擎订阅密钥或私有令牌。
+      所有认证通过 Anthropic SDK 标准授权机制处理，密钥由运行环境注入，不在代码中硬编码。
+    </div>
+  </section>
+
+</main>
+
+<!-- ════════════════════════════════════════════════
+     页脚
+════════════════════════════════════════════════ -->
+<footer>
+  <p>
+    源文件：
+    <code>03-claude-code-runnable/src/tools/WebSearchTool/WebSearchTool.ts</code> ·
+    <code>prompt.ts</code> ·
+    <code>UI.tsx</code>
+  </p>
+  <p style="margin-top:.3rem;">
+    本文档仅供理解代码流程使用，不包含任何密钥或私有信息。
+    内容基于代码阅读生成，如代码更新请以最新源码为准。
+  </p>
+</footer>
+
+</body>
+</html>
