@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebSearchTool 搜索流程图</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      padding: 24px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #2d3748;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #718096;
+      margin-bottom: 28px;
+    }
+
+    .chart-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    svg {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Legend */
+    .legend {
+      margin-top: 28px;
+      background: #fff;
+      border: 1px solid #cbd5e0;
+      border-radius: 10px;
+      padding: 18px 24px;
+      max-width: 780px;
+      width: 100%;
+    }
+
+    .legend h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #2d3748;
+    }
+
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+    }
+
+    .swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.15);
+    }
+
+    .legend-note {
+      margin-top: 14px;
+      font-size: 0.78rem;
+      color: #718096;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 12px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<h1>WebSearchTool 搜索流程图</h1>
+<p class="subtitle">
+  源文件：<code>03-claude-code-runnable/src/tools/WebSearchTool/WebSearchTool.ts</code>
+</p>
+
+<div class="chart-wrapper">
+  <!--
+    SVG flowchart — 760 wide × 1580 tall
+    Nodes are 240 × 52 rectangles centred at x=380.
+    Arrows run between nodes; side-branches for sub-steps.
+  -->
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 760 1600"
+    width="760"
+    aria-label="WebSearchTool 搜索流程图"
+    role="img"
+  >
+    <defs>
+      <!-- Arrow marker -->
+      <marker id="arr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#4a5568" />
+      </marker>
+      <marker id="arr-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#3182ce" />
+      </marker>
+      <marker id="arr-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#38a169" />
+      </marker>
+      <marker id="arr-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#dd6b20" />
+      </marker>
+
+      <!-- Drop shadow filter -->
+      <filter id="shadow" x="-8%" y="-8%" width="116%" height="116%">
+        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.12)" />
+      </filter>
+    </defs>
+
+    <!-- ========= STEP 1 — Entry ========= -->
+    <!-- y centre: 50 -->
+    <g filter="url(#shadow)">
+      <rect x="140" y="24" width="480" height="52" rx="26" fill="#2b6cb0" />
+      <text x="380" y="46" text-anchor="middle" fill="white" font-size="13" font-weight="700">① 调用入口</text>
+      <text x="380" y="63" text-anchor="middle" fill="#bee3f8" font-size="11">call(input, context, onProgress) 被触发</text>
+    </g>
+
+    <!-- arrow 1→2 -->
+    <line x1="380" y1="76" x2="380" y2="108" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 2 — Build schema ========= -->
+    <!-- y centre: 134 -->
+    <g filter="url(#shadow)">
+      <rect x="140" y="108" width="480" height="52" rx="8" fill="#2c7a7b" />
+      <text x="380" y="130" text-anchor="middle" fill="white" font-size="13" font-weight="700">② 构建工具模式（Tool Schema）</text>
+      <text x="380" y="147" text-anchor="middle" fill="#b2f5ea" font-size="11">makeToolSchema(input) → BetaWebSearchTool20250305（max_uses=8）</text>
+    </g>
+
+    <!-- arrow 2→3 -->
+    <line x1="380" y1="160" x2="380" y2="192" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 3 — queryModelWithStreaming ========= -->
+    <!-- y centre: 218 -->
+    <g filter="url(#shadow)">
+      <rect x="140" y="192" width="480" height="52" rx="8" fill="#276749" />
+      <text x="380" y="214" text-anchor="middle" fill="white" font-size="13" font-weight="700">③ 启动 queryModelWithStreaming</text>
+      <text x="380" y="231" text-anchor="middle" fill="#9ae6b4" font-size="11">携带 userMessage、systemPrompt、toolSchema 发送给模型</text>
+    </g>
+
+    <!-- arrow 3→4 -->
+    <line x1="380" y1="244" x2="380" y2="276" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 4 — Stream event loop ========= -->
+    <!-- y centre: 340 -->
+    <g filter="url(#shadow)">
+      <rect x="100" y="276" width="560" height="116" rx="8" fill="#744210" />
+      <text x="380" y="300" text-anchor="middle" fill="white" font-size="13" font-weight="700">④ 流式事件循环（Stream Event Loop）</text>
+      <text x="380" y="318" text-anchor="middle" fill="#fefcbf" font-size="11">for await (event of queryStream)</text>
+      <text x="380" y="337" text-anchor="middle" fill="#fefcbf" font-size="11">· event.type === 'assistant'  → 追加到 allContentBlocks[]</text>
+      <text x="380" y="356" text-anchor="middle" fill="#fefcbf" font-size="11">· event.type === 'stream_event'  → 细分处理（见步骤 ⑤⑥⑦⑧）</text>
+      <text x="380" y="375" text-anchor="middle" fill="#fefcbf" font-size="11">循环直至流结束</text>
+    </g>
+
+    <!-- ===== Sub-branch A: detect server_tool_use ===== -->
+    <!-- Branch line from step 4 right side -->
+    <!-- arrow from loop down-left to step 5 -->
+    <line x1="380" y1="392" x2="380" y2="424" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 5 — Detect server_tool_use ========= -->
+    <!-- y centre: 450 -->
+    <g filter="url(#shadow)">
+      <rect x="100" y="424" width="560" height="52" rx="8" fill="#553c9a" />
+      <text x="380" y="446" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑤ 检测 content_block_start → server_tool_use</text>
+      <text x="380" y="463" text-anchor="middle" fill="#e9d8fd" font-size="11">记录 currentToolUseId；重置 currentToolUseJson = ''</text>
+    </g>
+
+    <!-- arrow 5→6 -->
+    <line x1="380" y1="476" x2="380" y2="508" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 6 — Accumulate + extract query ========= -->
+    <!-- y centre: 534+26=560 -->
+    <g filter="url(#shadow)">
+      <rect x="100" y="508" width="560" height="64" rx="8" fill="#44337a" />
+      <text x="380" y="530" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑥ 收集 input_json_delta 并提取搜索词</text>
+      <text x="380" y="548" text-anchor="middle" fill="#e9d8fd" font-size="11">currentToolUseJson += delta.partial_json</text>
+      <text x="380" y="565" text-anchor="middle" fill="#e9d8fd" font-size="11">正则匹配 "query":"..." → jsonParse 解析出搜索词</text>
+    </g>
+
+    <!-- arrow 6→7 -->
+    <line x1="380" y1="572" x2="380" y2="604" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 7 — Report query_update progress ========= -->
+    <!-- y centre: 630 -->
+    <g filter="url(#shadow)">
+      <rect x="140" y="604" width="480" height="52" rx="8" fill="#c05621" />
+      <text x="380" y="626" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑦ 上报进度：query_update</text>
+      <text x="380" y="643" text-anchor="middle" fill="#feebc8" font-size="11">onProgress({ type:'query_update', query }) — 实时告知 UI 正在搜索的词</text>
+    </g>
+
+    <!-- arrow 7→8 (loop back annotation) -->
+    <!-- Side loop arrow: indicate "loop back for more deltas" -->
+    <path d="M 620 630 Q 700 630 700 392 Q 700 334 660 334" stroke="#dd6b20" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arr-orange)" />
+    <text x="708" y="510" text-anchor="middle" fill="#c05621" font-size="10" transform="rotate(-90,708,510)">继续接收 delta</text>
+
+    <!-- arrow 7→8 downward -->
+    <line x1="380" y1="656" x2="380" y2="688" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 8 — Detect web_search_tool_result ========= -->
+    <!-- y centre: 714 -->
+    <g filter="url(#shadow)">
+      <rect x="100" y="688" width="560" height="64" rx="8" fill="#276749" />
+      <text x="380" y="710" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑧ 检测 content_block_start → web_search_tool_result</text>
+      <text x="380" y="728" text-anchor="middle" fill="#9ae6b4" font-size="11">取对应 actualQuery；统计结果条数</text>
+      <text x="380" y="745" text-anchor="middle" fill="#9ae6b4" font-size="11">onProgress({ type:'search_results_received', resultCount, query })</text>
+    </g>
+
+    <!-- arrow 8→4 (loop back) -->
+    <path d="M 100 720 Q 30 720 30 334 Q 30 276 100 276" stroke="#3182ce" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arr-blue)" />
+    <text x="22" y="510" text-anchor="middle" fill="#3182ce" font-size="10" transform="rotate(-90,22,510)">等待下一批事件</text>
+
+    <!-- arrow 8→9 -->
+    <line x1="380" y1="752" x2="380" y2="800" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+    <text x="395" y="780" fill="#718096" font-size="10">流结束</text>
+
+    <!-- ========= STEP 9 — Compute duration ========= -->
+    <!-- y centre: 826 -->
+    <g filter="url(#shadow)">
+      <rect x="140" y="800" width="480" height="52" rx="8" fill="#1a365d" />
+      <text x="380" y="822" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑨ 计算耗时并调用 makeOutputFromSearchResponse</text>
+      <text x="380" y="839" text-anchor="middle" fill="#bee3f8" font-size="11">durationSeconds = (endTime - startTime) / 1000；传入 allContentBlocks</text>
+    </g>
+
+    <!-- arrow 9→10 -->
+    <line x1="380" y1="852" x2="380" y2="884" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 10 — makeOutputFromSearchResponse parsing ========= -->
+    <!-- y centre: 910 + content -->
+    <g filter="url(#shadow)">
+      <rect x="80" y="884" width="600" height="128" rx="8" fill="#2d3748" />
+      <text x="380" y="906" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑩ makeOutputFromSearchResponse 解析逻辑</text>
+      <text x="380" y="925" text-anchor="middle" fill="#e2e8f0" font-size="11">遍历 allContentBlocks[]，按 block.type 分支处理：</text>
+      <text x="200" y="945" fill="#fc8181" font-size="11">server_tool_use</text>
+      <text x="310" y="945" fill="#e2e8f0" font-size="11">→ 跳过（仅标记分隔，提交已积累文本）</text>
+      <text x="160" y="964" fill="#68d391" font-size="11">web_search_tool_result</text>
+      <text x="310" y="964" fill="#e2e8f0" font-size="11">→ 提取链接 hits（title + url）</text>
+      <text x="200" y="983" fill="#90cdf4" font-size="11">text / citation</text>
+      <text x="310" y="983" fill="#e2e8f0" font-size="11">→ 追加到 textAcc，最终 push 到 results[]</text>
+      <text x="380" y="1003" text-anchor="middle" fill="#fbd38d" font-size="11">results[] 可含：SearchResult 对象 | 纯文本字符串</text>
+    </g>
+
+    <!-- arrow 10→11 -->
+    <line x1="380" y1="1012" x2="380" y2="1044" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 11 — Return structured data ========= -->
+    <!-- y centre: 1070 -->
+    <g filter="url(#shadow)">
+      <rect x="140" y="1044" width="480" height="52" rx="8" fill="#22543d" />
+      <text x="380" y="1066" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑪ 返回结构化数据</text>
+      <text x="380" y="1083" text-anchor="middle" fill="#9ae6b4" font-size="11">{ data: { query, results[], durationSeconds } }  ← Output 类型</text>
+    </g>
+
+    <!-- arrow 11→12 -->
+    <line x1="380" y1="1096" x2="380" y2="1128" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= STEP 12 — Format output for UI ========= -->
+    <!-- y centre: 1154 + multi-line -->
+    <g filter="url(#shadow)">
+      <rect x="100" y="1128" width="560" height="116" rx="8" fill="#1a202c" />
+      <text x="380" y="1150" text-anchor="middle" fill="white" font-size="13" font-weight="700">⑫ 格式化输出供 UI 使用（mapToolResultToToolResultBlockParam）</text>
+      <text x="380" y="1170" text-anchor="middle" fill="#e2e8f0" font-size="11">拼接 formattedOutput 字符串：</text>
+      <text x="200" y="1190" fill="#90cdf4" font-size="11">result 为 string</text>
+      <text x="310" y="1190" fill="#e2e8f0" font-size="11">→ 直接追加文本摘要</text>
+      <text x="160" y="1209" fill="#68d391" font-size="11">result 为 SearchResult</text>
+      <text x="310" y="1209" fill="#e2e8f0" font-size="11">→ Links: JSON.stringify(content)</text>
+      <text x="380" y="1229" text-anchor="middle" fill="#fbd38d" font-size="11">末尾追加"必须在回复中引用来源"提示语</text>
+    </g>
+
+    <!-- arrow to end -->
+    <line x1="380" y1="1244" x2="380" y2="1276" stroke="#4a5568" stroke-width="2" marker-end="url(#arr)" />
+
+    <!-- ========= END ========= -->
+    <g filter="url(#shadow)">
+      <rect x="200" y="1276" width="360" height="48" rx="24" fill="#2b6cb0" />
+      <text x="380" y="1295" text-anchor="middle" fill="white" font-size="13" font-weight="700">✅ 完成</text>
+      <text x="380" y="1312" text-anchor="middle" fill="#bee3f8" font-size="11">tool_result 内容返回给模型上下文</text>
+    </g>
+
+    <!-- ===== Step numbers / connectors labels ===== -->
+  </svg>
+</div>
+
+<!-- Legend -->
+<div class="legend" style="max-width:760px;margin:24px auto 0;">
+  <h2>图例说明</h2>
+  <div class="legend-grid">
+    <div class="legend-item">
+      <div class="swatch" style="background:#2b6cb0;border-radius:26px;"></div>
+      <span>入口 / 结束（圆角胶囊）</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#2c7a7b;"></div>
+      <span>构建阶段</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#276749;"></div>
+      <span>流式模型调用 / 结果处理</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#744210;"></div>
+      <span>事件循环（主循环）</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#553c9a;"></div>
+      <span>检测 server_tool_use 开始</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#44337a;"></div>
+      <span>JSON 增量收集与解析</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#c05621;"></div>
+      <span>上报进度（onProgress）</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#1a365d;"></div>
+      <span>流结束后的处理</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#2d3748;"></div>
+      <span>响应解析（makeOutputFromSearchResponse）</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#22543d;"></div>
+      <span>返回结构化数据</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#1a202c;"></div>
+      <span>UI 格式化输出</span>
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#3182ce;border-radius:4px;"></div>
+      <span style="color:#3182ce;">━ ─ ─</span>&nbsp;循环回路（蓝色虚线）
+    </div>
+  </div>
+
+  <div class="legend-note">
+    <strong>⚠️ 重要说明：</strong>
+    实际的 <em>HTML 抓取与 DOM 解析</em>（即打开网页、读取正文内容）由
+    <strong>Anthropic 服务端内置的 <code>web_search_20250305</code> 工具</strong>在云端完成，
+    而非在本代码文件内进行。本工具只负责<em>调度搜索请求、收集流式结果、解析 block 列表</em>并将结构化数据返回给调用方。
+    本 HTML 文件不含任何敏感数据或 API 密钥。
+  </div>
+</div>
+
+</body>
+</html>
